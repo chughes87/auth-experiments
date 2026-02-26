@@ -23,7 +23,8 @@ Notion-inspired hierarchical document permissions system. Interview prep for Not
 - **Runtime:** Node.js
 - **Framework:** Express
 - **Database:** PostgreSQL with Knex (query builder + migrations)
-- **Testing:** Vitest
+- **Testing:** Vitest, fast-check + @fast-check/vitest (property-based testing)
+- **Formal verification:** TLA+ with TLC model checker
 
 ## Commands
 
@@ -55,6 +56,9 @@ DATABASE_URL="postgresql://user:password@host:5432/dbname"
 ## Project Structure
 
 ```
+specs/
+  PermissionResolution.tla  — TLA+ specification of resolution algorithm
+  PermissionResolution.cfg  — TLC model checker configuration
 src/
   modules/
     users/          — User CRUD
@@ -63,21 +67,25 @@ src/
     pages/          — Page CRUD + closure table maintenance (page-tree.service)
     permissions/    — Resolution algorithm, middleware, cache (the core module)
   middleware/       — authenticate (simple), error-handler
-  shared/           — types, errors, db-utils
+  shared/           — types (branded types, discriminated unions), errors (invariant), db-utils
   config/           — database, env
   db/migrations/    — Knex migrations
   db/seeds/         — Dev seed data
 tests/
   unit/             — Resolution algorithm, closure table logic
+  properties/       — Property-based tests (7 properties + model-based stateful)
+  snapshots/        — SQL resolution query snapshot tests
   integration/      — Full DB + API flows
 ```
 
 ## Critical Files
 
+- `specs/PermissionResolution.tla` — TLA+ formal specification of resolution algorithm
 - `src/modules/permissions/permission.service.ts` — Core resolution algorithm
 - `src/modules/permissions/permission.repository.ts` — Resolution SQL query (CTE)
 - `src/modules/pages/page-tree.service.ts` — Closure table maintenance
 - `src/modules/permissions/permission.middleware.ts` — Express authorization middleware
+- `tests/properties/permission.properties.test.ts` — Property-based tests for resolution invariants
 
 ## Conventions
 
@@ -88,10 +96,14 @@ tests/
 - Express middleware for authorization checks on page routes
 - Simple auth: user ID from `X-User-Id` header (not a real auth system)
 - Include tests in the same PR as the code they cover
+- Use branded types for all entity IDs (`UserId`, `GroupId`, `PageId`, `WorkspaceId`)
+- Use `invariant()` for pre/post-conditions in critical code paths
+- Property-based tests go in `tests/properties/`, snapshot tests in `tests/snapshots/`
 
 ## References
 
 - See `PLAN.md` for implementation phases and order
+- See `CORRECTNESS_PLAN.md` for the five-layer correctness strategy
 - See `README.md` for full architecture documentation and worked examples
 
 ## Feature Status
@@ -100,8 +112,10 @@ tests/
 | -------------------------------- | ----------- |
 | Project planning & documentation | In Progress |
 | Foundation (setup, migrations)   | Not Started |
+| TLA+ specification               | Not Started |
 | Page hierarchy + closure table   | Not Started |
 | Groups + nested membership       | Not Started |
 | Permission resolution algorithm  | Not Started |
+| Property-based tests             | Not Started |
 | API layer + middleware           | Not Started |
 | Dev seed data + polish           | Not Started |

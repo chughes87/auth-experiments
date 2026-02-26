@@ -111,38 +111,46 @@ Authorization middleware (`requirePagePermission('read')`) wraps page endpoints.
 ## Implementation Order
 
 ### Phase 1: Foundation
-1. Project setup — package.json, tsconfig, vitest, eslint
+1. Project setup — package.json, tsconfig, vitest, eslint, fast-check
 2. Knex config + Postgres connection
 3. All migrations (users → workspaces → groups → pages → permissions)
-4. Shared types and error classes
+4. Shared types (branded types for IDs, discriminated unions) and error classes (`invariant()` function)
 
-### Phase 2: Page Hierarchy
-5. Page CRUD with adjacency list
-6. `page-tree.service.ts` — closure table maintenance (insert, delete, move)
-7. Tests for closure table operations
+### Phase 2: TLA+ Specification
+5. Model permission resolution as a pure TLA+ operator
+6. Define invariants (denial supremacy, depth monotonicity, cycle safety, move safety)
+7. Run TLC model checker against small model, fix any violations
 
-### Phase 3: Groups
-8. Group CRUD + membership management
-9. `group-membership.service.ts` — nested group closure maintenance
-10. Tests for transitive membership resolution
+### Phase 3: Page Hierarchy
+8. Page CRUD with adjacency list
+9. `page-tree.service.ts` — closure table maintenance (insert, delete, move)
+10. Unit tests + property-based tests for closure table operations
 
-### Phase 4: Permission Resolution (the core)
-11. `permission.types.ts` — PermissionLevel enum + comparison helpers
-12. `permission.repository.ts` — the resolution CTE query
-13. `permission.service.ts` — `resolvePermission(userId, pageId)`
-14. `permission.middleware.ts` — `requirePagePermission(level)`
-15. `permission.cache.ts` — LRU cache with invalidation
-16. Exhaustive unit tests (inheritance, overrides, denial, groups, nested groups, fallback)
+### Phase 4: Groups
+11. Group CRUD + membership management
+12. `group-membership.service.ts` — nested group closure maintenance
+13. Cycle prevention trigger migration
+14. Tests for transitive membership resolution
 
-### Phase 5: API + Integration
-17. Permission CRUD endpoints
-18. Wire middleware into page routes
-19. Workspace default permissions
-20. Integration tests (full HTTP flows)
+### Phase 5: Permission Resolution (the core)
+15. `permission.types.ts` — PermissionLevel enum + comparison helpers
+16. `permission.repository.ts` — the resolution CTE query
+17. `permission.service.ts` — `resolvePermission(userId, pageId)` with runtime invariants
+18. `permission.middleware.ts` — `requirePagePermission(level)`
+19. `permission.cache.ts` — LRU cache with invalidation
+20. Unit tests (inheritance, overrides, denial, groups, nested groups, fallback)
+21. Property-based tests (7 properties + model-based stateful testing)
+22. Snapshot tests for the resolution SQL query
 
-### Phase 6: Polish
-21. Dev seed with realistic Notion-like tree
-22. README with architecture docs and trade-off discussion
+### Phase 6: API + Integration
+23. Permission CRUD endpoints
+24. Wire middleware into page routes
+25. Workspace default permissions
+26. Integration tests (full HTTP flows)
+
+### Phase 7: Polish
+27. Dev seed with realistic Notion-like tree
+28. Update README with final documentation
 
 ---
 
@@ -160,10 +168,16 @@ Authorization middleware (`requirePagePermission('read')`) wraps page endpoints.
 
 ## Verification
 
-1. **Unit tests**: `npx vitest` — resolution algorithm edge cases
-2. **Integration tests**: Test Postgres via Docker, full API flows
-3. **Manual smoke test**: Seed data, curl to create pages, share, verify access
-4. **Key scenarios**:
+Five layers of correctness verification — see `CORRECTNESS_PLAN.md` for full details.
+
+1. **TLA+ model checking**: `tlc specs/PermissionResolution.tla` — verify resolution invariants hold across all reachable states
+2. **Type-level**: Branded types and discriminated unions catch ID mixups and unhandled states at compile time
+3. **Property-based tests**: `npx vitest tests/properties/` — 7 properties + model-based stateful testing across random trees and op sequences
+4. **Unit tests**: `npx vitest tests/unit/` — resolution algorithm edge cases
+5. **Integration tests**: Test Postgres via Docker, full API flows
+6. **Snapshot tests**: Resolution SQL query locked down against known-good fixtures
+7. **Manual smoke test**: Seed data, curl to create pages, share, verify access
+8. **Key scenarios**:
    - Inherited permission from grandparent resolves correctly
    - Override at child level takes precedence
    - `none` blocks inherited access

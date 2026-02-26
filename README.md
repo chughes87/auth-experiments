@@ -220,6 +220,24 @@ The distinction between DELETE (remove grant, revert to inheritance) and POST wi
 
 ---
 
+## Correctness Strategy
+
+A permissions bug means either data leaks or lockouts — both unacceptable. This project uses five layers of defense, each catching different classes of bugs:
+
+1. **TLA+ specification** — Formally model the resolution algorithm and verify invariants (denial blocks inheritance, depth monotonicity, no cycle escalation) with the TLC model checker before writing implementation code.
+
+2. **TypeScript type-level encoding** — Branded types prevent ID mixups at compile time. Discriminated unions force exhaustive handling of resolution results. Zero runtime cost.
+
+3. **Property-based testing (fast-check)** — Seven invariant properties tested across thousands of randomly generated page trees, permission assignments, and group hierarchies. Model-based stateful testing generates random operation sequences and checks the real system matches an in-memory oracle.
+
+4. **Database-level constraints** — Cycle prevention trigger rejects group nesting that would create cycles. Closure table integrity triggers maintain consistency. CHECK/FK/UNIQUE constraints reject invalid states even from direct SQL access.
+
+5. **Runtime invariant assertions** — Strategic `invariant()` checks at resolver entry/exit catch contract violations between layers. Snapshot tests lock down the SQL resolution query.
+
+See `CORRECTNESS_PLAN.md` for full details on each layer, what it catches, and what it cannot catch.
+
+---
+
 ## Technology Choices
 
 | Technology | Role | Why |
