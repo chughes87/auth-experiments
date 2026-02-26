@@ -62,7 +62,6 @@ specs/
 src/
   modules/
     users/          — User CRUD
-    workspaces/     — Workspace CRUD + membership
     groups/         — Group CRUD + nested membership + closure maintenance
     pages/          — Page CRUD + closure table maintenance (page-tree.service)
     permissions/    — Resolution algorithm, middleware, cache (the core module)
@@ -96,7 +95,7 @@ tests/
 - Express middleware for authorization checks on page routes
 - Simple auth: user ID from `X-User-Id` header (not a real auth system)
 - Include tests in the same PR as the code they cover
-- Use branded types for all entity IDs (`UserId`, `GroupId`, `PageId`, `WorkspaceId`)
+- Use branded types for all entity IDs (`UserId`, `GroupId`, `PageId`)
 - Use `invariant()` for pre/post-conditions in critical code paths
 - Property-based tests go in `tests/properties/`, snapshot tests in `tests/snapshots/`
 

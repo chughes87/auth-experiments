@@ -199,7 +199,7 @@ User and group grants are all just "grants." No priority between them. Merge str
 
 | System | Inheritance | Merge | Denial | User vs Group |
 |--------|------------|-------|--------|---------------|
-| **Notion** (and our model) | Closest-override | Max | `none` as regular level | User wins |
+| **Notion** (our model) | Closest-override | Max | `none` as regular level | User wins |
 | **NTFS/Windows** | Accumulative | Union (per-action) | Deny trumps all | No distinction |
 | **AWS IAM** | N/A (flat) | Union | Deny trumps all | N/A (policies only) |
 | **Google Drive** | Closest-override | Max | Remove-only (no deny) | No distinction |
@@ -225,12 +225,13 @@ If the system makes it easy to restrict (deny trumps, min merge), then routine o
 
 ## Where Our Model Sits
 
-Our system chooses: **closest-override + max merge + `none` as regular level + user wins over group.**
+Our system chooses: **closest-override + max merge + `none` as regular level + user wins over group.** There is no workspace or tenant-level default fallback — if no grant exists on any ancestor, the result is `none`.
 
 This is less expressive than NTFS but much easier to reason about. It optimizes for:
 - **Predictability:** the nearest grant determines the outcome, no action-at-a-distance
 - **Safety of additive operations:** adding grants or group memberships never reduces access
 - **Simple debugging:** "find the closest grant" is a linear scan up the tree
+- **Explicit access only:** no implicit defaults — access must be deliberately granted
 
 The known limitations:
 - No way to "add to" an inherited permission without overriding it

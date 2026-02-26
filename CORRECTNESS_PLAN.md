@@ -25,7 +25,6 @@ type Brand<T, B extends string> = T & { readonly __brand: B };
 type UserId = Brand<string, 'UserId'>;
 type GroupId = Brand<string, 'GroupId'>;
 type PageId = Brand<string, 'PageId'>;
-type WorkspaceId = Brand<string, 'WorkspaceId'>;
 ```
 
 This prevents accidentally passing a `GroupId` where a `PageId` is expected. The compiler catches it; no test needed.
@@ -36,7 +35,6 @@ This prevents accidentally passing a `GroupId` where a `PageId` is expected. The
 type ResolvedPermission =
   | { kind: 'direct'; level: PermissionLevel; pageId: PageId }
   | { kind: 'inherited'; level: PermissionLevel; fromPageId: PageId; depth: number }
-  | { kind: 'workspace_default'; level: PermissionLevel }
   | { kind: 'no_access' };
 ```
 

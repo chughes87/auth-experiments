@@ -32,7 +32,7 @@ none < read < write < full_access
 
 ## 2. Precedence Rules
 
-Four rules, applied in strict order. Each rule is a tiebreaker for the previous one.
+Three rules, applied in strict order. Each rule is a tiebreaker for the previous one.
 
 ### Rule 1: Closest depth wins
 
@@ -52,9 +52,7 @@ If multiple group grants apply at the same depth (and no user grant exists at th
 
 > This prevents the paradox where adding a user to an additional group *reduces* their access.
 
-### Rule 4: Workspace default as fallback
-
-If no grant is found on any page in the ancestor chain, apply the workspace's `default_permission`. If no workspace default is set, the result is `none`.
+If no grant is found on any page in the ancestor chain, the result is `none`.
 
 ---
 
@@ -78,7 +76,7 @@ function resolvePermission(userId, pageId) -> PermissionLevel:
         // No match at this depth → continue to next ancestor (Rule 1)
 
     // No grant found on any ancestor
-    return workspaceDefault(pageId) ?? 'none'  // Rule 4
+    return 'none'
 ```
 
 ### Key property of the loop
@@ -123,7 +121,7 @@ ranked AS (
 SELECT permission_level FROM ranked WHERE rn = 1;
 ```
 
-If the query returns no rows, fall back to workspace default.
+If the query returns no rows, the result is `none`.
 
 ---
 
@@ -131,7 +129,7 @@ If the query returns no rows, fall back to workspace default.
 
 ### 4.1 No permissions anywhere
 
-User has no direct grants, belongs to no groups with grants, no workspace default is set.
+User has no direct grants, belongs to no groups with grants on any ancestor page.
 
 **Result:** `none`
 
@@ -176,19 +174,13 @@ Page X is under Parent A (which grants `write`). X is moved to Parent B (which g
 
 The closure table (`page_tree_paths`) is rebuilt for X and all descendants on move.
 
-### 4.8 Workspace default with deeper override
-
-Workspace default is `read`. Page at depth 3 has `write` for a group. Target page is a child of that page (depth 4), no direct grants.
-
-**Result:** `write` — the group grant at depth 1 (relative to target) beats the workspace default. Workspace default is only consulted when *no* grant exists on *any* ancestor.
-
-### 4.9 Multiple groups at different depths
+### 4.8 Multiple groups at different depths
 
 User is in Group A (grant at depth 2) and Group B (grant at depth 0). Group A grants `full_access`, Group B grants `read`.
 
 **Result:** `read` — Group B's grant at depth 0 wins by Rule 1, even though Group A's grant is more permissive.
 
-### 4.10 Self-referencing closure entry
+### 4.9 Self-referencing closure entry
 
 Every page has a `(page, page, depth=0)` entry in the closure table. A direct grant on a page is found at depth 0 through this self-reference. This is not a special case — it falls naturally out of the closure table structure.
 
@@ -274,5 +266,3 @@ The closure table is the source of truth for ancestry. Moving a page fully cuts 
 **Why this works but wouldn't in a richer RBAC model:** Rule 2 is a winner-take-all decision between one scalar (user grant) and another scalar (best group grant). This is reasonable because our permission model has a single resource type (page) and a single ordered level. In an RBAC system with many resource/action pairs (e.g., `deploy:staging`, `read:secrets`, `write:repos`), a group role is a *curated bundle* of permissions — and a user-level override shouldn't blow away the entire bundle. Such systems need per-action merge semantics (union or intersection) rather than scalar comparison. If this system ever grows to support granular actions beyond the four levels, Rule 2 would need to be revisited.
 
 **Why max-across-groups (not min):** The alternative — taking the *minimum* across groups — would mean that adding a user to a restrictive group could silently reduce their access through other groups. This violates the principle of least surprise. If you need to deny a specific user, use a user-level `none` grant.
-
-**Why workspace default is last resort, not a floor:** The workspace default only applies when zero grants exist on any ancestor. It is *not* a minimum access level. An explicit `none` at any ancestor overrides the workspace default. This is because workspace defaults represent "what members get on unshared pages" — once explicit sharing begins, the explicit grants take over entirely.
