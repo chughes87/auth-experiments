@@ -157,8 +157,8 @@ page_tree_closure:
 
 Group membership uses two closure tables:
 
-- **`group_ancestor_closure`** — `ancestor_group_id, descendant_group_id, depth`: Tracks group-to-group nesting. Used for cycle detection (check before inserting a nesting edge) and for computing transitive membership.
-- **`group_membership_closure`** — `group_id, user_id`: Flattened table of all users transitively in each group, derived from `group_members` + `group_ancestor_closure`. This allows the permission resolution query to find all of a user's groups (including indirect membership) in a single query.
+- **`group_group_closure`** — `ancestor_group_id, descendant_group_id, depth`: Tracks group-to-group nesting. Used for cycle detection (check before inserting a nesting edge) and for computing transitive membership.
+- **`group_user_closure`** — `group_id, user_id`: Flattened table of all users transitively in each group, derived from `group_members` + `group_group_closure`. This allows the permission resolution query to find all of a user's groups (including indirect membership) in a single query.
 
 ### Why Not Materialize Inherited Permissions?
 

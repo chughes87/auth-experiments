@@ -3,7 +3,7 @@ import type { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   // Prevent cycles in group nesting.
   // Before inserting a child_group_id into group_members, check if that child group
-  // is already an ancestor of the parent group in group_ancestor_closure.
+  // is already an ancestor of the parent group in group_group_closure.
   await knex.raw(`
     CREATE OR REPLACE FUNCTION prevent_group_cycle()
     RETURNS TRIGGER AS $$
@@ -21,7 +21,7 @@ export async function up(knex: Knex): Promise<void> {
       -- Check if the child_group_id is already an ancestor of group_id
       -- If so, adding this edge would create a cycle
       IF EXISTS (
-        SELECT 1 FROM group_ancestor_closure
+        SELECT 1 FROM group_group_closure
         WHERE ancestor_group_id = NEW.child_group_id
           AND descendant_group_id = NEW.group_id
       ) THEN
