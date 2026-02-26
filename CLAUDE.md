@@ -24,7 +24,7 @@ Notion-inspired hierarchical document permissions system. Interview prep for Not
 - **Framework:** Express
 - **Database:** PostgreSQL with Knex (query builder + migrations)
 - **Testing:** Vitest, fast-check + @fast-check/vitest (property-based testing)
-- **Formal verification:** TLA+ with TLC model checker
+- **Formal verification (nice-to-have):** TLA+ with TLC model checker
 
 ## Commands
 
@@ -110,9 +110,9 @@ tests/
 
 | Feature                          | Status      |
 | -------------------------------- | ----------- |
-| Project planning & documentation | In Progress |
-| Foundation (setup, migrations)   | Not Started |
-| TLA+ specification               | Not Started |
+| Project planning & documentation | Done        |
+| Foundation (setup, migrations)   | In Progress |
+| TLA+ specification (nice-to-have) | Not Started |
 | Page hierarchy + closure table   | Not Started |
 | Groups + nested membership       | Not Started |
 | Permission resolution algorithm  | Not Started |

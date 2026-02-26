@@ -155,7 +155,10 @@ page_tree_paths:
 
 ### Group Membership Closure
 
-The same closure table pattern applies to group membership. If Group A contains Group B which contains User X, the `group_membership_closure` table has a row connecting Group A to User X. This allows the permission resolution query to find all of a user's groups (including indirect membership) in a single query.
+Group membership uses two closure tables:
+
+- **`group_ancestor_paths`** — `ancestor_group_id, descendant_group_id, depth`: Tracks group-to-group nesting. Used for cycle detection (check before inserting a nesting edge) and for computing transitive membership.
+- **`group_membership_closure`** — `group_id, user_id`: Flattened table of all users transitively in each group, derived from `group_members` + `group_ancestor_paths`. This allows the permission resolution query to find all of a user's groups (including indirect membership) in a single query.
 
 ### Why Not Materialize Inherited Permissions?
 
@@ -218,21 +221,23 @@ GET  /api/pages/:pageId/effective-access → Resolve the calling user's effectiv
 
 The distinction between DELETE (remove grant, revert to inheritance) and POST with `none` (explicitly deny) is important and mirrors Notion's UX.
 
+**Access control for permission management:** POST and DELETE on `/api/pages/:pageId/permissions` require `full_access` on the page. This is enforced by the `requirePagePermission('full_access')` middleware.
+
 ---
 
 ## Correctness Strategy
 
-A permissions bug means either data leaks or lockouts — both unacceptable. This project uses five layers of defense, each catching different classes of bugs:
+A permissions bug means either data leaks or lockouts — both unacceptable. This project uses four layers of defense, each catching different classes of bugs:
 
-1. **TLA+ specification** — Formally model the resolution algorithm and verify invariants (denial blocks inheritance, depth monotonicity, no cycle escalation) with the TLC model checker before writing implementation code.
+1. **TypeScript type-level encoding** — Branded types prevent ID mixups at compile time. Discriminated unions force exhaustive handling of resolution results. Zero runtime cost.
 
-2. **TypeScript type-level encoding** — Branded types prevent ID mixups at compile time. Discriminated unions force exhaustive handling of resolution results. Zero runtime cost.
+2. **Property-based testing (fast-check)** — Seven invariant properties tested across thousands of randomly generated page trees, permission assignments, and group hierarchies. Model-based stateful testing generates random operation sequences and checks the real system matches an in-memory oracle.
 
-3. **Property-based testing (fast-check)** — Seven invariant properties tested across thousands of randomly generated page trees, permission assignments, and group hierarchies. Model-based stateful testing generates random operation sequences and checks the real system matches an in-memory oracle.
+3. **Database-level constraints** — Cycle prevention trigger rejects group nesting that would create cycles. Closure table integrity triggers maintain consistency. CHECK/FK/UNIQUE constraints reject invalid states even from direct SQL access.
 
-4. **Database-level constraints** — Cycle prevention trigger rejects group nesting that would create cycles. Closure table integrity triggers maintain consistency. CHECK/FK/UNIQUE constraints reject invalid states even from direct SQL access.
+4. **Runtime invariant assertions** — Strategic `invariant()` checks at resolver entry/exit catch contract violations between layers. Snapshot tests lock down the SQL resolution query.
 
-5. **Runtime invariant assertions** — Strategic `invariant()` checks at resolver entry/exit catch contract violations between layers. Snapshot tests lock down the SQL resolution query.
+A **TLA+ formal specification** is planned as a nice-to-have — it would exhaustively verify resolution invariants across all reachable states, complementing the random sampling of property-based tests.
 
 See `CORRECTNESS_PLAN.md` for full details on each layer, what it catches, and what it cannot catch.
 
