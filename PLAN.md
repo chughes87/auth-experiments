@@ -78,10 +78,6 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 - [ ] LRU cache with honest invalidation (full flush on any mutation)
 - [ ] Update docs with final state
 
-### Stretch: TLA+ Specification [Not Started]
-- [ ] Model resolution as a pure TLA+ operator
-- [ ] Define invariants, run TLC against small model
-
 ---
 
 ## Key Design Decisions
