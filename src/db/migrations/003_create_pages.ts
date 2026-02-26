@@ -3,7 +3,6 @@ import type { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('pages', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-    table.uuid('workspace_id').notNullable().references('id').inTable('workspaces').onDelete('CASCADE');
     table.uuid('parent_id').nullable().references('id').inTable('pages').onDelete('CASCADE');
     table.string('title').notNullable();
     table.text('content').defaultTo('');

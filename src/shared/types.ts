@@ -5,13 +5,11 @@ type Brand<T, B extends string> = T & { readonly __brand: B };
 export type UserId = Brand<string, 'UserId'>;
 export type GroupId = Brand<string, 'GroupId'>;
 export type PageId = Brand<string, 'PageId'>;
-export type WorkspaceId = Brand<string, 'WorkspaceId'>;
 
 // Type-safe constructors for branded IDs
 export const UserId = (id: string) => id as UserId;
 export const GroupId = (id: string) => id as GroupId;
 export const PageId = (id: string) => id as PageId;
-export const WorkspaceId = (id: string) => id as WorkspaceId;
 
 // Permission levels ordered by privilege: none < read < write < full_access
 export const PERMISSION_LEVELS = ['none', 'read', 'write', 'full_access'] as const;
@@ -42,20 +40,14 @@ export function maxPermissionLevel(a: PermissionLevel, b: PermissionLevel): Perm
 export type ResolvedPermission =
   | { kind: 'direct'; level: PermissionLevel; pageId: PageId }
   | { kind: 'inherited'; level: PermissionLevel; fromPageId: PageId; depth: number }
-  | { kind: 'workspace_default'; level: PermissionLevel }
   | { kind: 'no_access' };
 
 export function resolvedPermissionLevel(result: ResolvedPermission): PermissionLevel {
   switch (result.kind) {
     case 'direct':
     case 'inherited':
-    case 'workspace_default':
       return result.level;
     case 'no_access':
       return 'none';
   }
 }
-
-// Workspace member roles
-export const WORKSPACE_ROLES = ['owner', 'admin', 'member', 'guest'] as const;
-export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];

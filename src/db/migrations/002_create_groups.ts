@@ -1,13 +1,10 @@
 import type { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Groups within a workspace
   await knex.schema.createTable('groups', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-    table.uuid('workspace_id').notNullable().references('id').inTable('workspaces').onDelete('CASCADE');
-    table.string('name').notNullable();
+    table.string('name').notNullable().unique();
     table.timestamps(true, true);
-    table.unique(['workspace_id', 'name']);
   });
 
   // Direct group membership: users and child groups
