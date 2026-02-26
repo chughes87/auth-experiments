@@ -14,7 +14,7 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 
 ## Implementation Order
 
-### Phase 1: Minimal Foundation [In Progress]
+### Phase 1: Minimal Foundation [Done]
 - [x] Project setup: package.json, tsconfig (strict), vitest, fast-check, knex, express
 - [x] Env config + Knex Postgres connection
 - [x] Shared types: branded IDs, PermissionLevel enum, ResolvedPermission, invariant()
