@@ -29,7 +29,7 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 
 **Deliverable:** `npm run build` passes, `npx knex migrate:latest` creates all tables.
 
-### Phase 2: Resolution Algorithm + Core Services [Not Started]
+### Phase 2: Resolution Algorithm + Core Services [In Progress]
 - [ ] `permission.repository.ts` — the resolution CTE query
 - [ ] `permission.service.ts` — `resolvePermission(userId, pageId)` with runtime invariants
 - [ ] `page-tree.service.ts` — closure table maintenance (insert, delete, move)
