@@ -111,11 +111,11 @@ tests/
 | Feature                          | Status      |
 | -------------------------------- | ----------- |
 | Project planning & documentation | Done        |
-| Foundation (setup, migrations)   | In Progress |
+| Foundation (setup, migrations)   | Done        |
 | TLA+ specification (nice-to-have) | Not Started |
-| Page hierarchy + closure table   | Not Started |
-| Groups + nested membership       | Not Started |
-| Permission resolution algorithm  | Not Started |
+| Page hierarchy + closure table   | Done        |
+| Groups + nested membership       | Done        |
+| Permission resolution algorithm  | Done        |
 | Property-based tests             | Not Started |
 | API layer + middleware           | Not Started |
 | Dev seed data + polish           | Not Started |
