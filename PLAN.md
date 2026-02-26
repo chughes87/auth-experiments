@@ -29,12 +29,12 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 
 **Deliverable:** `npm run build` passes, `npx knex migrate:latest` creates all tables.
 
-### Phase 2: Resolution Algorithm + Core Services [In Progress]
-- [ ] `permission.repository.ts` — the resolution CTE query
-- [ ] `permission.service.ts` — `resolvePermission(userId, pageId)` with runtime invariants
-- [ ] `page-tree.service.ts` — closure table maintenance (insert, delete, move)
-- [ ] `group-membership.service.ts` — group nesting closure maintenance, cycle check
-- [ ] Unit tests for the resolver against a real DB:
+### Phase 2: Resolution Algorithm + Core Services [Done]
+- [x] `permission.repository.ts` — the resolution CTE query
+- [x] `permission.service.ts` — `resolvePermission(userId, pageId)` with runtime invariants
+- [x] `page-tree.service.ts` — closure table maintenance (insert, delete, move)
+- [x] `group-membership.service.ts` — group nesting closure maintenance, cycle check
+- [x] Unit tests for the resolver against a real DB:
   - Inherited permission from grandparent
   - Override at child level takes precedence
   - `none` blocks inherited access
@@ -43,7 +43,7 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
   - Nested group membership grants access
   - Workspace default fallback
   - Moving a page updates inheritance
-- [ ] Snapshot test for the resolution SQL query
+- [x] Snapshot test for the resolution SQL query
 
 **Deliverable:** The resolver works end-to-end against Postgres. Core algorithm is proven correct.
 
