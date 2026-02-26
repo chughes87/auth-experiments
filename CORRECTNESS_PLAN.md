@@ -1,12 +1,11 @@
 # Correctness Strategy
 
-A permissions bug means either data leaks (users see what they shouldn't) or lockouts (users can't access what they should). Both are unacceptable. This document describes five layers of defense, each catching different classes of bugs that the others miss.
+A permissions bug means either data leaks (users see what they shouldn't) or lockouts (users can't access what they should). Both are unacceptable. This document describes four layers of defense, each catching different classes of bugs that the others miss. A TLA+ formal specification is included as a nice-to-have.
 
 ## Summary
 
 | Layer | What it catches | Cost |
 |---|---|---|
-| TLA+ specification | Logic errors in the resolution algorithm design | 1-2 days (resolution only) |
 | TypeScript type encoding | ID mixups, unhandled permission states | 1-2 hours setup, then free |
 | Property-based testing | Edge cases in random tree shapes, group hierarchies, op sequences | 1-2 days for properties + model |
 | Database constraints | Cycle corruption, orphaned records, invalid states from concurrent writes | 2-3 hours in migrations |
@@ -14,61 +13,7 @@ A permissions bug means either data leaks (users see what they shouldn't) or loc
 
 ---
 
-## Layer 1: TLA+ Specification
-
-Formally model the permission resolution algorithm and verify invariants with the TLC model checker *before* writing implementation code. This catches design errors — cases where the algorithm itself produces the wrong answer, regardless of implementation quality.
-
-### What to model
-
-The resolution algorithm as a **pure TLA+ operator**: given a set of users, groups, pages (tree), and permission assignments, compute the effective access for any (user, page) pair.
-
-```
-ResolvePermission(user, page) ==
-    Walk ancestors from page upward.
-    At each depth: check user-level grants, then group-level grants.
-    First match wins (closest depth, user over group, most permissive group).
-    Fallback to workspace default, then 'none'.
-```
-
-### Invariants to verify
-
-1. **Denial supremacy**: If `none` is explicitly set at depth D for a user, and no closer override (depth < D) exists, the resolved permission is `none`.
-
-2. **Depth monotonicity**: If overrides exist at depths D1 and D2 where D1 < D2, the override at D1 determines the result regardless of D2's value.
-
-3. **User-over-group precedence**: If both a user grant and a group grant exist at the same depth, the user grant wins.
-
-4. **No cycle escalation**: Adding a cycle in group nesting (A contains B, B contains A) does not grant any user more access than they would have without the cycle.
-
-5. **Determinism**: The resolution operator is a pure function — same inputs always produce the same output. (This is guaranteed by construction if defined without non-determinism in TLA+.)
-
-6. **Move safety**: After reparenting a page, all resolution invariants still hold for every descendant.
-
-### Model size
-
-Small model is sufficient — resolution bugs surface with small inputs:
-- 2-3 users, 2 groups, 3-4 pages (depth 2-3)
-- TLC exhaustively checks all reachable states in minutes
-
-### Files
-
-```
-specs/
-  PermissionResolution.tla    # TLA+ specification
-  PermissionResolution.cfg    # TLC model checker configuration
-```
-
-### Scope boundary
-
-Model the resolution algorithm only. Do **not** model:
-- SQL query correctness (abstraction gap — TLA+ models the algorithm, not the SQL)
-- Cache behavior (implementation detail)
-- HTTP/API layer
-- Performance characteristics
-
----
-
-## Layer 2: TypeScript Type-Level Encoding
+## Layer 1: TypeScript Type-Level Encoding
 
 Shift entire categories of bugs to compile time with zero runtime cost.
 
@@ -114,7 +59,7 @@ After calling `invariant(x !== null, '...')`, TypeScript narrows `x` to non-null
 
 ---
 
-## Layer 3: Property-Based Testing with fast-check
+## Layer 2: Property-Based Testing with fast-check
 
 Unit tests verify specific known scenarios. Property-based tests verify *invariants* hold across thousands of randomly generated scenarios — catching edge cases you didn't think to write tests for.
 
@@ -186,25 +131,24 @@ tests/
 
 ---
 
-## Layer 4: Database-Level Constraints
+## Layer 3: Database-Level Constraints
 
 Even if application code has a bug, the database rejects invalid states. This is defense in depth — multiple application codepaths, direct SQL access, and concurrent writes are all covered.
 
 ### Cycle prevention trigger
 
-The most important database-level invariant. If adding a group membership edge would create a cycle (A contains B, B contains A), the insert is rejected.
+The most important database-level invariant. If adding a group nesting edge would create a cycle (A contains B, B contains A), the insert is rejected. Uses `group_ancestor_paths` (the group→group closure table) for cycle detection.
 
 ```sql
 CREATE OR REPLACE FUNCTION prevent_group_cycle()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Check if the child_group_id is already an ancestor of group_id
+  -- If so, adding this edge would create a cycle
   IF EXISTS (
-    SELECT 1 FROM group_membership_closure
+    SELECT 1 FROM group_ancestor_paths
     WHERE ancestor_group_id = NEW.child_group_id
-      AND descendant_user_id IN (
-        SELECT descendant_user_id FROM group_membership_closure
-        WHERE ancestor_group_id = NEW.group_id
-      )
+      AND descendant_group_id = NEW.group_id
   ) THEN
     RAISE EXCEPTION 'Cycle detected: would create circular group nesting';
   END IF;
@@ -215,7 +159,7 @@ $$ LANGUAGE plpgsql;
 
 ### Closure table integrity
 
-Triggers that maintain `page_tree_paths` on page insert/delete/move and `group_membership_closure` on group membership changes. These ensure the precomputed closure tables never drift from the source of truth (adjacency list / group_members).
+Triggers that maintain `page_tree_paths` on page insert/delete/move, `group_ancestor_paths` on group nesting changes, and `group_membership_closure` (flattened user→group) derived from `group_members` + `group_ancestor_paths`. These ensure the precomputed closure tables never drift from the source of truth.
 
 ### Standard constraints
 
@@ -231,7 +175,7 @@ Triggers that maintain `page_tree_paths` on page insert/delete/move and `group_m
 
 ---
 
-## Layer 5: Runtime Invariant Assertions + Snapshot Tests
+## Layer 4: Runtime Invariant Assertions + Snapshot Tests
 
 ### Strategic invariant placement
 
@@ -288,20 +232,22 @@ Understanding the gaps is as important as understanding the coverage:
 
 | Layer | Cannot catch |
 |---|---|
-| TLA+ | SQL bugs, cache issues, implementation bugs (model ≠ code) |
 | Type encoding | Logic errors where types are correct but values are wrong |
 | Property-based testing | Properties you didn't think to write, issues only at scale |
 | Database constraints | Application-level logic errors that produce valid-but-wrong data |
 | Runtime invariants | Bugs in the invariant checks themselves, performance issues |
 
-This is why all five layers are needed. No single technique is sufficient.
+This is why all four layers are needed. No single technique is sufficient.
 
 ---
 
 ## Implementation Order
 
 1. **Phase 1 (Foundation):** Set up branded types, `invariant()` function, install fast-check
-2. **Phase 2 (TLA+):** Write and verify the TLA+ spec before implementing the resolver
-3. **Phase 3-4 (Hierarchy + Groups):** Add cycle prevention trigger, property tests for closure tables
-4. **Phase 5 (Permission Resolution):** Implement resolver with runtime invariants, add 7 property tests + model-based tests + snapshot tests
-5. **Phase 6 (Integration):** Full-stack integration tests verify all layers work together
+2. **Phase 2-3 (Hierarchy + Groups):** Add cycle prevention trigger, property tests for closure tables
+3. **Phase 4 (Permission Resolution):** Implement resolver with runtime invariants, add 7 property tests + model-based tests + snapshot tests
+4. **Phase 5 (Integration):** Full-stack integration tests verify all layers work together
+
+## Nice-to-Have: TLA+ Specification
+
+See `TLA_PLUS_PLAN.md` for the TLA+ specification plan.
