@@ -12,7 +12,7 @@ export async function up(knex: Knex): Promise<void> {
 
   // Page hierarchy closure table
   // Every page has a self-referencing row (depth 0) plus rows for all ancestors
-  await knex.schema.createTable('page_tree_paths', (table) => {
+  await knex.schema.createTable('page_tree_closure', (table) => {
     table.uuid('ancestor_id').notNullable().references('id').inTable('pages').onDelete('CASCADE');
     table.uuid('descendant_id').notNullable().references('id').inTable('pages').onDelete('CASCADE');
     table.integer('depth').notNullable();
@@ -21,12 +21,12 @@ export async function up(knex: Knex): Promise<void> {
 
   // Index for "find all ancestors of page X" (used by permission resolution)
   await knex.raw(`
-    CREATE INDEX page_tree_paths_descendant_depth
-    ON page_tree_paths (descendant_id, depth ASC)
+    CREATE INDEX page_tree_closure_descendant_depth
+    ON page_tree_closure (descendant_id, depth ASC)
   `);
 }
 
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTableIfExists('page_tree_paths');
+  await knex.schema.dropTableIfExists('page_tree_closure');
   await knex.schema.dropTableIfExists('pages');
 }

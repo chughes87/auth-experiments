@@ -6,7 +6,7 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 
 ## Schema Fixes from Original Plan
 
-1. **Split group closure into two concerns**: `group_ancestor_paths` (group→group nesting) + `group_membership_closure` (flattened user→group, derived)
+1. **Split group closure into two concerns**: `group_ancestor_closure` (group→group nesting) + `group_membership_closure` (flattened user→group, derived)
 2. **Simplify workspace defaults**: Single `default_permission` column on `workspaces` instead of separate table
 3. **Explicit `full_access` requirement**: Permission management requires `full_access` on the page
 
@@ -21,11 +21,11 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 - [x] All migrations in order:
   1. users
   2. workspaces + workspace_members
-  3. groups + group_members + group_ancestor_paths + group_membership_closure
-  4. pages + page_tree_paths
+  3. groups + group_members + group_ancestor_closure + group_membership_closure
+  4. pages + page_tree_closure
   5. page_permissions
-  6. cycle prevention trigger (checks group_ancestor_paths)
-  7. closure table maintenance triggers (page_tree_paths, group closures)
+  6. cycle prevention trigger (checks group_ancestor_closure)
+  7. closure table maintenance triggers (page_tree_closure, group closures)
 
 **Deliverable:** `npm run build` passes, `npx knex migrate:latest` creates all tables.
 

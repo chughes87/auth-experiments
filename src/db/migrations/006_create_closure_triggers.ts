@@ -11,14 +11,14 @@ export async function up(knex: Knex): Promise<void> {
     RETURNS TRIGGER AS $$
     BEGIN
       -- Self-referencing path
-      INSERT INTO page_tree_paths (ancestor_id, descendant_id, depth)
+      INSERT INTO page_tree_closure (ancestor_id, descendant_id, depth)
       VALUES (NEW.id, NEW.id, 0);
 
       -- Paths to all ancestors (if page has a parent)
       IF NEW.parent_id IS NOT NULL THEN
-        INSERT INTO page_tree_paths (ancestor_id, descendant_id, depth)
+        INSERT INTO page_tree_closure (ancestor_id, descendant_id, depth)
         SELECT ancestor_id, NEW.id, depth + 1
-        FROM page_tree_paths
+        FROM page_tree_closure
         WHERE descendant_id = NEW.parent_id;
       END IF;
 
@@ -32,7 +32,7 @@ export async function up(knex: Knex): Promise<void> {
     EXECUTE FUNCTION maintain_page_tree_insert();
   `);
 
-  // On page DELETE: cascade handled by ON DELETE CASCADE on page_tree_paths FK
+  // On page DELETE: cascade handled by ON DELETE CASCADE on page_tree_closure FK
 
   // On page parent_id UPDATE (move): handled by application code in page-tree.service.ts
   // because subtree moves require deleting and reinserting paths for all descendants,
@@ -43,7 +43,7 @@ export async function up(knex: Knex): Promise<void> {
   // =================================================================
 
   // When a group nesting edge is added (child_group_id in group_members),
-  // update group_ancestor_paths to reflect transitive relationships
+  // update group_ancestor_closure to reflect transitive relationships
   await knex.raw(`
     CREATE OR REPLACE FUNCTION maintain_group_ancestor_insert()
     RETURNS TRIGGER AS $$
@@ -54,42 +54,42 @@ export async function up(knex: Knex): Promise<void> {
       END IF;
 
       -- Ensure self-referencing rows exist for both groups
-      INSERT INTO group_ancestor_paths (ancestor_group_id, descendant_group_id, depth)
+      INSERT INTO group_ancestor_closure (ancestor_group_id, descendant_group_id, depth)
       VALUES (NEW.group_id, NEW.group_id, 0)
       ON CONFLICT DO NOTHING;
 
-      INSERT INTO group_ancestor_paths (ancestor_group_id, descendant_group_id, depth)
+      INSERT INTO group_ancestor_closure (ancestor_group_id, descendant_group_id, depth)
       VALUES (NEW.child_group_id, NEW.child_group_id, 0)
       ON CONFLICT DO NOTHING;
 
       -- Add direct relationship
-      INSERT INTO group_ancestor_paths (ancestor_group_id, descendant_group_id, depth)
+      INSERT INTO group_ancestor_closure (ancestor_group_id, descendant_group_id, depth)
       VALUES (NEW.group_id, NEW.child_group_id, 1)
       ON CONFLICT DO NOTHING;
 
       -- Add transitive relationships:
       -- All ancestors of group_id are now also ancestors of child_group_id and its descendants
-      INSERT INTO group_ancestor_paths (ancestor_group_id, descendant_group_id, depth)
+      INSERT INTO group_ancestor_closure (ancestor_group_id, descendant_group_id, depth)
       SELECT a.ancestor_group_id, d.descendant_group_id, a.depth + d.depth + 1
-      FROM group_ancestor_paths a
-      CROSS JOIN group_ancestor_paths d
+      FROM group_ancestor_closure a
+      CROSS JOIN group_ancestor_closure d
       WHERE a.descendant_group_id = NEW.group_id
         AND d.ancestor_group_id = NEW.child_group_id
         AND a.ancestor_group_id != a.descendant_group_id  -- exclude self-refs to avoid duplicates
       ON CONFLICT (ancestor_group_id, descendant_group_id) DO NOTHING;
 
       -- Also connect ancestors of group_id to child_group_id directly
-      INSERT INTO group_ancestor_paths (ancestor_group_id, descendant_group_id, depth)
+      INSERT INTO group_ancestor_closure (ancestor_group_id, descendant_group_id, depth)
       SELECT ancestor_group_id, NEW.child_group_id, depth + 1
-      FROM group_ancestor_paths
+      FROM group_ancestor_closure
       WHERE descendant_group_id = NEW.group_id
         AND ancestor_group_id != NEW.group_id
       ON CONFLICT DO NOTHING;
 
       -- And connect group_id to descendants of child_group_id
-      INSERT INTO group_ancestor_paths (ancestor_group_id, descendant_group_id, depth)
+      INSERT INTO group_ancestor_closure (ancestor_group_id, descendant_group_id, depth)
       SELECT NEW.group_id, descendant_group_id, depth + 1
-      FROM group_ancestor_paths
+      FROM group_ancestor_closure
       WHERE ancestor_group_id = NEW.child_group_id
         AND descendant_group_id != NEW.child_group_id
       ON CONFLICT DO NOTHING;
@@ -123,7 +123,7 @@ export async function up(knex: Knex): Promise<void> {
         -- Add user to all ancestor groups
         INSERT INTO group_membership_closure (group_id, user_id)
         SELECT ancestor_group_id, NEW.user_id
-        FROM group_ancestor_paths
+        FROM group_ancestor_closure
         WHERE descendant_group_id = NEW.group_id
           AND ancestor_group_id != NEW.group_id
         ON CONFLICT DO NOTHING;
@@ -135,7 +135,7 @@ export async function up(knex: Knex): Promise<void> {
         INSERT INTO group_membership_closure (group_id, user_id)
         SELECT gap.ancestor_group_id, gmc.user_id
         FROM group_membership_closure gmc
-        CROSS JOIN group_ancestor_paths gap
+        CROSS JOIN group_ancestor_closure gap
         WHERE gmc.group_id = NEW.child_group_id
           AND gap.descendant_group_id = NEW.group_id
         ON CONFLICT DO NOTHING;
@@ -173,7 +173,7 @@ export async function up(knex: Knex): Promise<void> {
         INSERT INTO group_membership_closure (group_id, user_id)
         SELECT DISTINCT COALESCE(gap.ancestor_group_id, gm.group_id), gm.user_id
         FROM group_members gm
-        LEFT JOIN group_ancestor_paths gap ON gap.descendant_group_id = gm.group_id
+        LEFT JOIN group_ancestor_closure gap ON gap.descendant_group_id = gm.group_id
         WHERE gm.user_id = OLD.user_id
         ON CONFLICT DO NOTHING;
       END IF;
@@ -183,7 +183,7 @@ export async function up(knex: Knex): Promise<void> {
         -- This is the nuclear option but is correct; optimize later if needed
         DELETE FROM group_membership_closure
         WHERE group_id IN (
-          SELECT ancestor_group_id FROM group_ancestor_paths
+          SELECT ancestor_group_id FROM group_ancestor_closure
           WHERE descendant_group_id = OLD.group_id
         ) OR group_id = OLD.group_id;
 
@@ -192,15 +192,15 @@ export async function up(knex: Knex): Promise<void> {
         SELECT DISTINCT g.group_id, gm.user_id
         FROM (
           SELECT ancestor_group_id AS group_id, descendant_group_id
-          FROM group_ancestor_paths
+          FROM group_ancestor_closure
           WHERE ancestor_group_id IN (
-            SELECT ancestor_group_id FROM group_ancestor_paths
+            SELECT ancestor_group_id FROM group_ancestor_closure
             WHERE descendant_group_id = OLD.group_id
           ) OR ancestor_group_id = OLD.group_id
           UNION
           SELECT OLD.group_id, OLD.group_id
         ) g
-        JOIN group_ancestor_paths gap2 ON gap2.ancestor_group_id = g.descendant_group_id
+        JOIN group_ancestor_closure gap2 ON gap2.ancestor_group_id = g.descendant_group_id
         JOIN group_members gm ON gm.group_id = gap2.descendant_group_id AND gm.user_id IS NOT NULL
         ON CONFLICT DO NOTHING;
 
@@ -210,13 +210,13 @@ export async function up(knex: Knex): Promise<void> {
         FROM group_members gm
         JOIN (
           SELECT ancestor_group_id AS agg_group_id, descendant_group_id
-          FROM group_ancestor_paths
+          FROM group_ancestor_closure
           UNION
           SELECT id, id FROM groups
         ) g_agg ON g_agg.descendant_group_id = gm.group_id
         WHERE gm.user_id IS NOT NULL
           AND g_agg.agg_group_id IN (
-            SELECT ancestor_group_id FROM group_ancestor_paths
+            SELECT ancestor_group_id FROM group_ancestor_closure
             WHERE descendant_group_id = OLD.group_id
             UNION SELECT OLD.group_id
           )

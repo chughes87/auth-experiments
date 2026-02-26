@@ -41,14 +41,14 @@ export async function up(knex: Knex): Promise<void> {
 
   // Group-to-group nesting closure table
   // Tracks all ancestor-descendant relationships between groups
-  await knex.schema.createTable('group_ancestor_paths', (table) => {
+  await knex.schema.createTable('group_ancestor_closure', (table) => {
     table.uuid('ancestor_group_id').notNullable().references('id').inTable('groups').onDelete('CASCADE');
     table.uuid('descendant_group_id').notNullable().references('id').inTable('groups').onDelete('CASCADE');
     table.integer('depth').notNullable();
     table.primary(['ancestor_group_id', 'descendant_group_id']);
   });
 
-  // Flattened user-to-group membership (derived from group_members + group_ancestor_paths)
+  // Flattened user-to-group membership (derived from group_members + group_ancestor_closure)
   // "user X is a member of group Y (directly or transitively)"
   await knex.schema.createTable('group_membership_closure', (table) => {
     table.uuid('group_id').notNullable().references('id').inTable('groups').onDelete('CASCADE');
@@ -59,7 +59,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('group_membership_closure');
-  await knex.schema.dropTableIfExists('group_ancestor_paths');
+  await knex.schema.dropTableIfExists('group_ancestor_closure');
   await knex.schema.dropTableIfExists('group_members');
   await knex.schema.dropTableIfExists('groups');
 }
