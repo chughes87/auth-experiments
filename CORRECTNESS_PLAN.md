@@ -137,7 +137,7 @@ Even if application code has a bug, the database rejects invalid states. This is
 
 ### Cycle prevention trigger
 
-The most important database-level invariant. If adding a group nesting edge would create a cycle (A contains B, B contains A), the insert is rejected. Uses `group_ancestor_paths` (the group→group closure table) for cycle detection.
+The most important database-level invariant. If adding a group nesting edge would create a cycle (A contains B, B contains A), the insert is rejected. Uses `group_group_closure` (the group→group closure table) for cycle detection.
 
 ```sql
 CREATE OR REPLACE FUNCTION prevent_group_cycle()
@@ -146,7 +146,7 @@ BEGIN
   -- Check if the child_group_id is already an ancestor of group_id
   -- If so, adding this edge would create a cycle
   IF EXISTS (
-    SELECT 1 FROM group_ancestor_paths
+    SELECT 1 FROM group_group_closure
     WHERE ancestor_group_id = NEW.child_group_id
       AND descendant_group_id = NEW.group_id
   ) THEN
@@ -159,7 +159,7 @@ $$ LANGUAGE plpgsql;
 
 ### Closure table integrity
 
-Triggers that maintain `page_tree_paths` on page insert/delete/move, `group_ancestor_paths` on group nesting changes, and `group_membership_closure` (flattened user→group) derived from `group_members` + `group_ancestor_paths`. These ensure the precomputed closure tables never drift from the source of truth.
+Triggers that maintain `page_tree_closure` on page insert/delete/move, `group_group_closure` on group nesting changes, and `group_user_closure` (flattened user→group) derived from `group_members` + `group_group_closure`. These ensure the precomputed closure tables never drift from the source of truth.
 
 ### Standard constraints
 
