@@ -24,7 +24,10 @@ export async function resolvePermission(
 
   const pageIds = ancestors.map((a) => a.ancestor_id);
 
-  // Step 2: Fetch user and group grants on all ancestor pages
+  // Step 2: Fetch user and group grants on all ancestor pages.
+  // This loads all matching grants into memory. For deep trees with many group grants
+  // this could be pushed into a single SQL aggregation query that returns one row,
+  // trading readability for reduced memory.
   const [userGrants, groupGrants] = await Promise.all([
     getUserGrants(db, userId, pageIds),
     getGroupGrants(db, userId, pageIds),
