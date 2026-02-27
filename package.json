@@ -1,0 +1,31 @@
+{
+  "name": "auth-experiments",
+  "version": "1.0.0",
+  "description": "Notion-inspired hierarchical document permissions system",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "knex": "^3.1.0",
+    "pg": "^8.13.0",
+    "dotenv": "^16.4.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/uuid": "^10.0.0",
+    "fast-check": "^3.22.0",
+    "@fast-check/vitest": "^0.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -130,10 +130,10 @@ The page hierarchy uses two complementary representations:
 
 **Adjacency list** (`pages.parent_id`): The natural representation. Each page points to its parent. Simple for inserts, intuitive for tree display, but resolving "all ancestors of page X" requires a recursive query.
 
-**Closure table** (`page_tree_paths`): A precomputed table of all ancestor-descendant relationships. For a page at depth 3, the closure table contains entries connecting it to itself (depth 0), its parent (depth 1), its grandparent (depth 2), and the root (depth 3).
+**Closure table** (`page_tree_closure`): A precomputed table of all ancestor-descendant relationships. For a page at depth 3, the closure table contains entries connecting it to itself (depth 0), its parent (depth 1), its grandparent (depth 2), and the root (depth 3).
 
 ```
-page_tree_paths:
+page_tree_closure:
   ancestor_id | descendant_id | depth
   ────────────┼───────────────┼──────
   A           | A             | 0      ← self
@@ -152,8 +152,8 @@ page_tree_paths:
 
 Group membership uses two closure tables:
 
-- **`group_ancestor_paths`** — `ancestor_group_id, descendant_group_id, depth`: Tracks group-to-group nesting. Used for cycle detection (check before inserting a nesting edge) and for computing transitive membership.
-- **`group_membership_closure`** — `group_id, user_id`: Flattened table of all users transitively in each group, derived from `group_members` + `group_ancestor_paths`. This allows the permission resolution query to find all of a user's groups (including indirect membership) in a single query.
+- **`group_group_closure`** — `ancestor_group_id, descendant_group_id, depth`: Tracks group-to-group nesting. Used for cycle detection (check before inserting a nesting edge) and for computing transitive membership.
+- **`group_user_closure`** — `group_id, user_id`: Flattened table of all users transitively in each group, derived from `group_members` + `group_group_closure`. This allows the permission resolution query to find all of a user's groups (including indirect membership) in a single query.
 
 ### Why Not Materialize Inherited Permissions?
 

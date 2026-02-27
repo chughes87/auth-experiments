@@ -6,20 +6,20 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 
 ## Schema Fixes from Original Plan
 
-1. **Split group closure into two concerns**: `group_ancestor_paths` (group→group nesting) + `group_membership_closure` (flattened user→group, derived)
+1. **Split group closure into two concerns**: `group_group_closure` (group→group nesting) + `group_user_closure` (flattened user→group, derived)
 2. **Explicit `full_access` requirement**: Permission management requires `full_access` on the page
 
 ---
 
 ## Implementation Order
 
-### Phase 1: Minimal Foundation [In Progress]
+### Phase 1: Minimal Foundation [Done]
 - [x] Project setup: package.json, tsconfig (strict), vitest, fast-check, knex, express
 - [x] Env config + Knex Postgres connection
 - [x] Shared types: branded IDs, PermissionLevel enum, ResolvedPermission, invariant()
 - [x] All migrations in order:
   1. users + `permission_level` ENUM
-  2. groups + group_members + group_ancestor_paths + group_membership_closure
+  2. groups + group_members + group_group_closure + group_user_closure
   3. pages + page_tree_paths
   4. page_permissions
   5. cycle prevention trigger (checks group_ancestor_paths)
