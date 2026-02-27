@@ -1,97 +1,67 @@
 import type { Knex } from 'knex';
-import { PageId, type UserId, type ResolvedPermission, type PermissionLevel } from '../../shared/types.js';
+import type { UserId, PageId, PermissionLevel } from '../../shared/types.js';
 
-interface ResolutionRow {
-  permission: PermissionLevel;
+export interface AncestorRow {
+  ancestor_id: string;
   depth: number;
-  source_page_id: string;
-  grant_type: 'user' | 'group';
 }
 
-/**
- * Resolve the effective permission for a user on a page.
- *
- * Strategy: single CTE query that:
- *   1. Finds all ancestor pages (via page_tree_closure)
- *   2. Joins with page_permissions for user grants and group grants
- *      (group grants filtered to groups the user belongs to via group_user_closure)
- *   3. Finds the minimum depth that has any grant
- *   4. At that depth: user grant wins over group; among groups, most permissive wins
- */
-export async function resolvePermission(
+export interface UserGrantRow {
+  page_id: string;
+  permission: PermissionLevel;
+}
+
+export interface GroupGrantRow {
+  page_id: string;
+  permission: PermissionLevel;
+}
+
+/** Get all ancestors of a page (including itself at depth 0), ordered by depth. */
+export async function getAncestors(
+  conn: Knex,
+  pageId: PageId,
+): Promise<AncestorRow[]> {
+  const result = await conn.raw<{ rows: AncestorRow[] }>(
+    `SELECT ancestor_id, depth
+     FROM page_tree_closure
+     WHERE descendant_id = ?
+     ORDER BY depth ASC`,
+    [pageId],
+  );
+  return result.rows;
+}
+
+/** Get user-level permission grants on any of the given pages for a specific user. */
+export async function getUserGrants(
   conn: Knex,
   userId: UserId,
-  pageId: PageId,
-): Promise<ResolvedPermission> {
-  const result = await conn.raw<{ rows: ResolutionRow[] }>(
-    `
-    WITH grants AS (
-      -- User-level grants on ancestor pages
-      SELECT
-        pp.permission,
-        ptc.depth,
-        pp.page_id AS source_page_id,
-        'user' AS grant_type
-      FROM page_tree_closure ptc
-      JOIN page_permissions pp ON pp.page_id = ptc.ancestor_id
-      WHERE ptc.descendant_id = ?
-        AND pp.user_id = ?
-
-      UNION ALL
-
-      -- Group-level grants on ancestor pages (only groups user belongs to)
-      SELECT
-        pp.permission,
-        ptc.depth,
-        pp.page_id AS source_page_id,
-        'group' AS grant_type
-      FROM page_tree_closure ptc
-      JOIN page_permissions pp ON pp.page_id = ptc.ancestor_id
-      JOIN group_user_closure guc ON guc.group_id = pp.group_id AND guc.user_id = ?
-      WHERE ptc.descendant_id = ?
-        AND pp.group_id IS NOT NULL
-    ),
-    min_depth AS (
-      SELECT MIN(depth) AS depth FROM grants
-    )
-    SELECT
-      g.permission,
-      g.depth,
-      g.source_page_id,
-      g.grant_type
-    FROM grants g
-    JOIN min_depth md ON g.depth = md.depth
-    ORDER BY
-      -- User grants first, then group grants
-      CASE g.grant_type WHEN 'user' THEN 0 ELSE 1 END,
-      -- Among groups, most permissive first
-      CASE g.permission
-        WHEN 'full_access' THEN 3
-        WHEN 'write' THEN 2
-        WHEN 'read' THEN 1
-        WHEN 'none' THEN 0
-      END DESC
-    `,
-    [pageId, userId, userId, pageId],
+  pageIds: string[],
+): Promise<UserGrantRow[]> {
+  if (pageIds.length === 0) return [];
+  const result = await conn.raw<{ rows: UserGrantRow[] }>(
+    `SELECT page_id, permission
+     FROM page_permissions
+     WHERE user_id = ?
+       AND page_id = ANY(?)`,
+    [userId, pageIds],
   );
+  return result.rows;
+}
 
-  const rows = result.rows;
-  if (rows.length === 0) {
-    return { kind: 'no_access' };
-  }
-
-  // First row is the winner: user grant at min depth, or most permissive group at min depth
-  const winner = rows[0]!;
-  const sourcePageId = PageId(winner.source_page_id);
-
-  if (winner.depth === 0) {
-    return { kind: 'direct', level: winner.permission, pageId: sourcePageId };
-  }
-
-  return {
-    kind: 'inherited',
-    level: winner.permission,
-    fromPageId: sourcePageId,
-    depth: winner.depth,
-  };
+/** Get group-level permission grants on any of the given pages, filtered to groups the user belongs to. */
+export async function getGroupGrants(
+  conn: Knex,
+  userId: UserId,
+  pageIds: string[],
+): Promise<GroupGrantRow[]> {
+  if (pageIds.length === 0) return [];
+  const result = await conn.raw<{ rows: GroupGrantRow[] }>(
+    `SELECT pp.page_id, pp.permission
+     FROM page_permissions pp
+     JOIN group_user_closure guc ON guc.group_id = pp.group_id AND guc.user_id = ?
+     WHERE pp.page_id = ANY(?)
+       AND pp.group_id IS NOT NULL`,
+    [userId, pageIds],
+  );
+  return result.rows;
 }
