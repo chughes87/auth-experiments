@@ -1,15 +1,15 @@
 # Hierarchical Document Permissions System
 
-A Notion-inspired permission system that implements granular access control over a hierarchical page tree. Built to explore the real engineering challenges behind workspace permissions: inheritance, overrides, group hierarchies, and performant resolution.
+A Notion-inspired permission system that implements granular access control over a hierarchical page tree. Built to explore the real engineering challenges behind document permissions: inheritance, overrides, group hierarchies, and performant resolution.
 
 ## Architecture Overview
 
 ### The Problem
 
-In a document workspace like Notion, pages are organized as trees. A workspace might look like:
+In a document system like Notion, pages are organized as trees. An organization might look like:
 
 ```
-Workspace: Acme Corp
+Acme Corp
 ├── Engineering
 │   ├── Roadmap            ← shared with all of Engineering
 │   │   ├── Q1 Goals
@@ -28,7 +28,7 @@ Users expect permissions to "just work" intuitively:
 - Restrict "Q2 Goals" to leadership → overrides the inherited access
 - Remove someone's access to a specific child page → explicit denial
 
-This creates a surprisingly complex resolution problem: for any given (user, page) pair, the system must determine the effective access level by considering direct grants, group memberships (potentially nested), inherited permissions from ancestor pages, explicit overrides, and workspace-level defaults — all while remaining fast enough to run on every single page load.
+This creates a surprisingly complex resolution problem: for any given (user, page) pair, the system must determine the effective access level by considering direct grants, group memberships (potentially nested), inherited permissions from ancestor pages, and explicit overrides — all while remaining fast enough to run on every single page load.
 
 ### Core Concepts
 
@@ -85,8 +85,7 @@ resolvePermission(userId, pageId):
        a. Look for an explicit user-level permission → if found, return it
        b. Look for group-level permissions → if found, take the most permissive
        c. If any match found at this depth, return it (closest override wins)
-    4. If no match found on any page, check workspace defaults
-    5. If still nothing, return 'none'
+    4. If no match found on any ancestor, return 'none'
 ```
 
 ### Precedence Rules
@@ -99,15 +98,11 @@ These rules determine which permission wins when multiple grants could apply:
 
 3. **Most permissive group (at same depth):** If a user belongs to multiple groups that all have grants on the same page, the most permissive grant wins. If Group A grants `read` and Group B grants `write`, the user gets `write`. This prevents the confusing situation where adding someone to an additional group *reduces* their access.
 
-4. **Workspace default (fallback):** If no explicit permission exists on any ancestor page, the workspace-level default applies. This is how you give all workspace members baseline `read` access.
-
-5. **None (default):** If absolutely nothing matches, the user has no access.
+4. **None (default):** If no explicit permission exists on any ancestor page, the user has no access.
 
 ### Example Walkthrough
 
 ```
-Workspace default: all members get 'read'
-
 Page: Engineering       → Group "Eng Team" has 'write'
   Page: Roadmap         → (no explicit permissions)
     Page: Q2 Goals      → Group "Leadership" has 'full_access'
@@ -188,7 +183,6 @@ TTL:         5 minutes (safety net)
 - Permission created/updated/deleted on any page → invalidate all cache entries for that page and its descendants
 - User added/removed from a group → invalidate all cache entries for that user
 - Page moved (reparented) → invalidate all cache entries for the moved subtree
-- Workspace default changed → invalidate all cache entries for the workspace
 
 For this project, the cache is an in-memory LRU (using the `lru-cache` package). In production, this would be Redis with pub/sub for cross-instance invalidation.
 
@@ -261,4 +255,3 @@ See `CORRECTNESS_PLAN.md` for full details on each layer, what it catches, and w
 - **Rich content:** Pages have a `title` and `content: TEXT`. No block-level editing.
 - **Real-time:** No WebSocket collaboration or live permission updates.
 - **UI:** API-only. The interesting work is in the data model and resolution algorithm.
-- **Multi-tenancy at scale:** Single Postgres instance. Production would shard by workspace.
