@@ -27,9 +27,9 @@ Restructured plan that is **resolver-first** — build the core algorithm first,
 
 **Deliverable:** `npm run build` passes, `npx knex migrate:latest` creates all tables.
 
-### Phase 2: Resolution Algorithm + Core Services [Not Started]
-- [ ] `permission.repository.ts` — the resolution CTE query
-- [ ] `permission.service.ts` — `resolvePermission(userId, pageId)` with runtime invariants
+### Phase 2: Resolution Algorithm + Core Services [In Progress]
+- [x] `permission.repository.ts` — the resolution CTE query
+- [x] `permission.service.ts` — `resolvePermission(userId, pageId)` with runtime invariants
 - [ ] `page-tree.service.ts` — closure table maintenance (insert, delete, move)
 - [ ] `group-membership.service.ts` — group nesting closure maintenance, cycle check
 - [ ] Unit tests for the resolver against a real DB:
